@@ -13,7 +13,7 @@ include("alive.jl")
 include("es_rhs.jl")
 
 # Simulation parameters
-domain = (; x_lb=-0.5, x_ub=6.6, y_lb=-1.5, y_ub=1.5)
+domain = (; x_lb=-0.5, x_ub=5.5, y_lb=-1.5, y_ub=1.5)
 # objects = (PresetGeometries.Circle(R=0.331, x0=0.0),)
 objects = (PresetGeometries.BiconvexAirfoil(scale=0.5, x0=0.03),)
 
@@ -40,21 +40,11 @@ rho_inf = 20.0
 p_inf   = 20.0
 c0 = sqrt(gamma*p_inf/rho_inf)
 
-tau  = 2.0
 v1_max =  1.5*sqrt(gamma*rho_inf/p_inf)
 
 
 function uIC(x, y)
-    # return prim2cons(SVector{num_fields}([rho_inf, 0.0, 0.0, p_inf]), equations )
     return prim2cons(SVector{num_fields}([rho_inf, v1_max, 0.0, p_inf]), equations )
-end
-
-function v1_prescribed(x,y,t)
-    return v1_max*(1.0 - exp(-4*t^2/(tau^2)))
-end
-
-function a_prescribed(x,y,t)
-    return v1_max*8*t/(tau^2)*exp(-4*t^2/(tau^2))
 end
 
 # Set the boundary conditions and forcing
@@ -77,14 +67,10 @@ function BC(x,y,t, nx, ny, uf)
         # Reflective on the airfoil
         v_n = uf[2]*nx + uf[3]*ny
         return SVector{4, Float64}(uf[1], uf[2] - 2*v_n*nx, uf[3] - 2*v_n*ny, uf[4])
-
-        # # zero-velocity (no-slip) BCs on the airfoil
-        # return SVector{num_fields}([uf[1], 0.0, 0.0, uf[4]])
     end
 end
 
 function forcing(u, x,y,t)
-    # return SVector{4, Float64}(0.0*x, u[1]*a_prescribed(x,y,t), 0.0*x, 0.0*x)
     return SVector{4, Float64}(0.0*x,  0.0*x, 0.0*x, 0.0*x)
 end
 
@@ -119,13 +105,10 @@ cartesian_operators, cut_operators = generate_operators(rd, md)
 
 params = (; cartesian_operators, cut_operators, BC, forcing, fs, md, rd, equations, memory, use_srd=true, use_entropy_vars=false, srd)
 
-# t_end = 4.903
 t_start = 0
-t_end = 0.5
-# t_span= (0.0, t_end)
+t_end = 5
 t_span = (t_start, t_end)
 t_save = LinRange(t_span..., Integer(ceil(t_end - t_start))*100 + 1)
-# t_save = LinRange(t_span..., Integer(100 + 1))
 
 # Simulate the PDE
 experiment="impulsiveStart_coarseMesh_troubleshoot6"
@@ -166,7 +149,6 @@ function pressure(u, x, y, t)
 end
 
 function titleString(t)
-    # return @sprintf("Mach %.3lf, t=%.3lf", v1_prescribed(domain.x_lb, 0.0, t)/c0, t)
     return @sprintf("t=%.2lf", t)
 end
 
@@ -180,7 +162,7 @@ domain_plot = (; x_lb=-0.5, x_ub=0.5, y_lb=-0.5, y_ub=0.5)
 makeGIF_grid(u_plot, t_save, density, length(sol.u), md, rd, x_plot, y_plot, V_plot, domain, 
     t_step_incr=plotting_increment,
     plot_lims = (0.7*rho_inf, 1.3*rho_inf),
-    filename=@sprintf("figures/biconvex/eulerBiconvex_gridPlot_density_%s.mp4", experiment),
+    filename=@sprintf("eulerBiconvex_gridPlot_density_%s.mp4", experiment),
     fps = fps,
     sol_color=cgrad(:PuOr, rev=true), #:Purples,
     plot_embedded_objects=true,
@@ -191,7 +173,7 @@ makeGIF_grid(u_plot, t_save, density, length(sol.u), md, rd, x_plot, y_plot, V_p
 makeGIF_grid(u_plot, t_save, pressure, length(sol.u), md, rd, x_plot, y_plot, V_plot, domain, 
     t_step_incr=plotting_increment,
     plot_lims = (0.6*p_inf, 1.4*p_inf),
-    filename=@sprintf("figures/biconvex/eulerBiconvex_gridPlot_pressure_%s.mp4", experiment),
+    filename=@sprintf("eulerBiconvex_gridPlot_pressure_%s.mp4", experiment),
     fps = fps,
     sol_color=cgrad(:RdGy, rev=true),
     plot_embedded_objects=true,
@@ -202,59 +184,10 @@ makeGIF_grid(u_plot, t_save, pressure, length(sol.u), md, rd, x_plot, y_plot, V_
 makeGIF_grid(u_plot, t_save, x_velocity, length(sol.u), md, rd, x_plot, y_plot, V_plot, domain, 
     t_step_incr=plotting_increment,
     plot_lims = (0.8*v1_max, 1.2*v1_max),
-    filename=@sprintf("figures/biconvex/eulerBiconvex_gridPlot_xVelocity_%s.mp4", experiment),
+    filename=@sprintf("eulerBiconvex_gridPlot_xVelocity_%s.mp4", experiment),
     fps = fps,
     sol_color=:Spectral,
     plot_embedded_objects=true,
     line_color=:black,
     titleString=titleString,
 )
-
-
-# makeMovie_GLMakie(sol.u, md.x, md.y, t_save, density, objects, length(sol.u), 
-#                   x_plot, y_plot, V_plot, 
-#                   filename="figures/euler_biconvex_impulsiveStart.mp4",
-#                   aspect=(1.0, 0.8, 0.67), 
-#                   outside_val=0.0,
-#                   obj_val=30.0,
-#                   zlims=(5.0, 25.0), 
-#                   clims=(5.0, 25.0),
-#                   sol_color=:Purples,
-#                   azimuth=-pi/2,
-#                   elevation = pi/2,
-#                   perspectiveness=0 )
-
-
-# ## Make GIF w triangulations
-# triangulations = build_triangulations(md, objects)
-
-# makeGIF_tri(u_plot, t_save, density, length(sol.u), md, rd, triangulations, domain, 
-#     t_step_incr=plotting_increment,
-#     plot_lims = (0.5*rho_inf, 1.5*rho_inf),
-#     filename=@sprintf("figures/eulerBiconvex_density_%s.gif", experiment),
-#     fps = fps,
-#     sol_color=:Purples,
-#     plot_embedded_objects=true,
-#     titleString=titleString
-# )
-
-# makeGIF_tri(u_plot, t_save, x_velocity, length(sol.u), md, rd, triangulations, domain, 
-#     t_step_incr=plotting_increment, 
-#     plot_lims = (0.8*v1_max, 1.2*v1_max),
-#     filename=@sprintf("figures/eulerBiconvex_xVelocity_%s.gif", experiment),
-#     fps = fps,
-#     sol_color=:Spectral,
-#     plot_embedded_objects=true,
-#     titleString=titleString
-# )
-
-# makeGIF_tri(u_plot, t_save, pressure, length(sol.u), md, rd, triangulations, domain, 
-#     t_step_incr=plotting_increment, 
-#     plot_lims = (0, 35),
-#     filename=@sprintf("figures/eulerBiconvex_pressure_%s.gif", experiment),
-#     fps = fps,
-#     sol_color=:Blues,
-#     plot_embedded_objects=true,
-#     titleString=titleString
-# )
-
